@@ -2,6 +2,9 @@
 OUTPUT = function-sidecar
 GRPC_DIR = pkg/dispatcher/grpc
 
+test: build
+	go test -v ./...
+
 build: $(OUTPUT)
 
 $(OUTPUT): vendor
