@@ -210,6 +210,17 @@ public:
   std::string type_to_enum(t_type* ttype);
   std::string type_to_phpdoc(t_type* ttype);
 
+  bool php_is_scalar(t_type *ttype) {
+    ttype = ttype->get_true_type();
+    if(ttype->is_base_type()) {
+      return true;
+    } else if(ttype->is_enum()) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   std::string php_namespace_base(const t_program* p) {
     std::string ns = p->get_namespace("php");
     const char* delimiter = "\\";
@@ -760,10 +771,7 @@ void t_php_generator::generate_php_type_spec(ofstream& out, t_type* t) {
  * type information to generalize serialization routines.
  */
 void t_php_generator::generate_php_struct_spec(ofstream& out, t_struct* tstruct) {
-  indent(out) << "if (!isset(self::$_TSPEC)) {" << endl;
-  indent_up();
-
-  indent(out) << "self::$_TSPEC = array(" << endl;
+  indent(out) << "static $_TSPEC = array(" << endl;
   indent_up();
 
   const vector<t_field*>& members = tstruct->get_members();
@@ -773,15 +781,14 @@ void t_php_generator::generate_php_struct_spec(ofstream& out, t_struct* tstruct)
     indent(out) << (*m_iter)->get_key() << " => array(" << endl;
     indent_up();
     out << indent() << "'var' => '" << (*m_iter)->get_name() << "'," << endl;
+    out << indent() << "'isRequired' => " << ((*m_iter)->get_req() == t_field::T_REQUIRED ? "true" : "false") << "," << endl;
     generate_php_type_spec(out, t);
     indent(out) << ")," << endl;
     indent_down();
   }
 
   indent_down();
-  indent(out) << "  );" << endl;
-  indent_down();
-  indent(out) << "}" << endl;
+  indent(out) << "  );" << endl << endl;
 }
 
 /**
@@ -813,7 +820,9 @@ void t_php_generator::generate_php_struct_definition(ofstream& out,
   out << " {" << endl;
   indent_up();
 
-  indent(out) << "static $_TSPEC;" << endl << endl;
+  out << indent() << "static $isValidate = " << (validate_ ? "true" : "false") << ";" << endl << endl;
+
+  generate_php_struct_spec(out, tstruct);
 
   for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
     string dval = "null";
@@ -831,8 +840,6 @@ void t_php_generator::generate_php_struct_definition(ofstream& out,
   string param = (members.size() > 0) ? "$vals=null" : "";
   out << indent() << "public function __construct(" << param << ") {" << endl;
   indent_up();
-
-  generate_php_struct_spec(out, tstruct);
 
   if (members.size() > 0) {
     for (m_iter = members.begin(); m_iter != members.end(); ++m_iter) {
@@ -1336,11 +1343,24 @@ void t_php_generator::generate_process_function(std::ofstream& out, t_service* t
   string resultname = php_namespace(tservice->get_program()) + service_name_ + "_"
                       + tfunction->get_name() + "_result";
 
+  out << indent() << "$bin_accel = ($input instanceof "
+             << "TBinaryProtocolAccelerated) && function_exists('thrift_protocol_read_binary_after_message_begin');"
+             << endl;
+  out << indent() << "if ($bin_accel)" << endl;
+  scope_up(out);
+
+  out << indent() << "$args = thrift_protocol_read_binary_after_message_begin($input, '" << argsname
+             << "', $input->isStrictRead());" << endl;
+
+  scope_down(out);
+  out << indent() << "else" << endl;
+  scope_up(out);
   out << indent() << "$args = new " << argsname << "();" << endl << indent()
              << "$args->read($input);" << endl;
   if (!binary_inline_) {
     out << indent() << "$input->readMessageEnd();" << endl;
   }
+  scope_down(out);
 
   t_struct* xs = tfunction->get_xceptions();
   const std::vector<t_field*>& xceptions = xs->get_members();
@@ -2097,11 +2117,12 @@ void t_php_generator::generate_deserialize_set_element(ofstream& out, t_set* tse
 
   generate_deserialize_field(out, &felem);
 
-  indent(out) << "if (is_scalar($" << elem << ")) {" << endl;
-  indent(out) << "  $" << prefix << "[$" << elem << "] = true;" << endl;
-  indent(out) << "} else {" << endl;
-  indent(out) << "  $" << prefix << " []= $" << elem << ";" << endl;
-  indent(out) << "}" << endl;
+  t_type* elem_type = tset->get_elem_type();
+  if(php_is_scalar(elem_type)) {
+    indent(out) << "$" << prefix << "[$" << elem << "] = true;" << endl;
+  } else {
+    indent(out) << "$" << prefix << "[] = $" << elem << ";" << endl;
+  }
 }
 
 void t_php_generator::generate_deserialize_list_element(ofstream& out,
@@ -2289,11 +2310,13 @@ void t_php_generator::generate_serialize_container(ofstream& out, t_type* ttype,
     string iter_val = tmp("iter");
     indent(out) << "foreach ($" << prefix << " as $" << iter << " => $" << iter_val << ")" << endl;
     scope_up(out);
-    indent(out) << "if (is_scalar($" << iter_val << ")) {" << endl;
-    generate_serialize_set_element(out, (t_set*)ttype, iter);
-    indent(out) << "} else {" << endl;
-    generate_serialize_set_element(out, (t_set*)ttype, iter_val);
-    indent(out) << "}" << endl;
+
+    t_type* elem_type = ((t_set*)ttype)->get_elem_type();
+    if(php_is_scalar(elem_type)) {
+      generate_serialize_set_element(out, (t_set*)ttype, iter);
+    } else {
+      generate_serialize_set_element(out, (t_set*)ttype, iter_val);
+    }
     scope_down(out);
   } else if (ttype->is_list()) {
     string iter = tmp("iter");

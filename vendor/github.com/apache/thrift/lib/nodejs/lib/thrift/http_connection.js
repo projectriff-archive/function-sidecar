@@ -169,6 +169,10 @@ var HttpConnection = exports.HttpConnection = function(host, port, options) {
     var data = [];
     var dataLen = 0;
 
+    if (response.statusCode !== 200) {
+      this.emit("error", new THTTPException(statusCode, response));
+    }
+
     response.on('error', function (e) {
       self.emit("error", e);
     });
@@ -210,10 +214,13 @@ util.inherits(HttpConnection, EventEmitter);
  */
 HttpConnection.prototype.write = function(data) {
   var self = this;
-  self.nodeOptions.headers["Content-length"] = data.length;
+  var opts = self.nodeOptions;
+  opts.headers["Content-length"] = data.length;
+  if (!opts.headers["Content-Type"])
+    opts.headers["Content-Type"] = "application/x-thrift";  
   var req = (self.https) ?
-      https.request(self.nodeOptions, self.responseCallback) :
-      http.request(self.nodeOptions, self.responseCallback);
+      https.request(opts, self.responseCallback) :
+      http.request(opts, self.responseCallback);
   req.on('error', function(err) {
     self.emit("error", err);
   });
@@ -236,3 +243,14 @@ exports.createHttpConnection = function(host, port, options) {
 
 exports.createHttpClient = createClient
 
+
+function THTTPException(statusCode, response) {
+  thrift.TApplicationException.call(this);
+  Error.captureStackTrace(this, this.constructor);
+  this.name = this.constructor.name;
+  this.statusCode = statusCode;
+  this.response = response;
+  this.type = thrift.TApplicationExceptionType.PROTOCOL_ERROR;
+  this.message = "Received a response with a bad HTTP status code: " + response.statusCode;
+}
+util.inherits(THTTPException, thrift.TApplicationException);

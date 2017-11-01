@@ -1369,11 +1369,11 @@ void t_hs_generator::generate_deserialize_type(ofstream& out, t_type* type, stri
 
   } else if (type->is_base_type()) {
     t_base_type::t_base tbase = ((t_base_type*)type)->get_base();
-    if (tbase == t_base_type::TYPE_STRING && !((t_base_type*)type)->is_binary()) {
+    if (tbase == t_base_type::TYPE_STRING && !type->is_binary()) {
       out << "E.decodeUtf8 ";
     }
     out << val;
-    if (((t_base_type*)type)->is_binary()) {
+    if (type->is_binary()) {
       // Since wire type of binary is the same as string, we actually receive T.TString not
       // T.TBinary
       out << "; T.TString " << val << " -> " << val;
@@ -1415,12 +1415,12 @@ void t_hs_generator::generate_deserialize_container(ofstream& out, t_type* ttype
 
   } else if (ttype->is_set()) {
     out << "(Set.fromList $ P.map (\\" << val << " -> ";
-    generate_deserialize_type(out, ((t_map*)ttype)->get_key_type(), val);
+    generate_deserialize_type(out, ((t_set*)ttype)->get_elem_type(), val);
     out << ") " << arg << ")";
 
   } else if (ttype->is_list()) {
     out << "(Vector.fromList $ P.map (\\" << val << " -> ";
-    generate_deserialize_type(out, ((t_map*)ttype)->get_key_type(), val);
+    generate_deserialize_type(out, ((t_list*)ttype)->get_elem_type(), val);
     out << ") " << arg << ")";
   }
 }
@@ -1448,7 +1448,7 @@ void t_hs_generator::generate_serialize_type(ofstream& out, t_type* type, string
     if (type->is_base_type()) {
       t_base_type::t_base tbase = ((t_base_type*)type)->get_base();
       out << type_to_constructor(type) << " ";
-      if (tbase == t_base_type::TYPE_STRING && !((t_base_type*)type)->is_binary()) {
+      if (tbase == t_base_type::TYPE_STRING && !type->is_binary()) {
         out << "$ E.encodeUtf8 ";
       }
       out << name;
@@ -1488,9 +1488,9 @@ void t_hs_generator::generate_serialize_container(ofstream& out, t_type* ttype, 
     out << ")) $ Map.toList " << prefix;
 
   } else if (ttype->is_set()) {
-    out << "T.TSet " << type_to_enum(((t_list*)ttype)->get_elem_type());
+    out << "T.TSet " << type_to_enum(((t_set*)ttype)->get_elem_type());
     out << " $ P.map (\\" << v << " -> ";
-    generate_serialize_type(out, ((t_list*)ttype)->get_elem_type(), v);
+    generate_serialize_type(out, ((t_set*)ttype)->get_elem_type(), v);
     out << ") $ Set.toList " << prefix;
 
   } else if (ttype->is_list()) {
@@ -1550,7 +1550,7 @@ string t_hs_generator::type_to_enum(t_type* type) {
     case t_base_type::TYPE_VOID:
       return "T.T_VOID";
     case t_base_type::TYPE_STRING:
-      return ((t_base_type*)type)->is_binary() ? "T.T_BINARY" : "T.T_STRING";
+      return type->is_binary() ? "T.T_BINARY" : "T.T_STRING";
     case t_base_type::TYPE_BOOL:
       return "T.T_BOOL";
     case t_base_type::TYPE_I8:
@@ -1577,7 +1577,7 @@ string t_hs_generator::type_to_enum(t_type* type) {
     return "(T.T_MAP " + ktype + " " + vtype + ")";
 
   } else if (type->is_set()) {
-    return "(T.T_SET " + type_to_enum(((t_list*)type)->get_elem_type()) + ")";
+    return "(T.T_SET " + type_to_enum(((t_set*)type)->get_elem_type()) + ")";
 
   } else if (type->is_list()) {
     return "(T.T_LIST " + type_to_enum(((t_list*)type)->get_elem_type()) + ")";
@@ -1645,7 +1645,7 @@ string t_hs_generator::render_hs_type(t_type* type, bool needs_parens) {
     case t_base_type::TYPE_VOID:
       return "()";
     case t_base_type::TYPE_STRING:
-      return (((t_base_type*)type)->is_binary() ? "LBS.ByteString" : "LT.Text");
+      return (type->is_binary() ? "LBS.ByteString" : "LT.Text");
     case t_base_type::TYPE_BOOL:
       return "P.Bool";
     case t_base_type::TYPE_I8:
@@ -1698,7 +1698,7 @@ string t_hs_generator::type_to_constructor(t_type* type) {
     case t_base_type::TYPE_VOID:
       throw "invalid type: T_VOID";
     case t_base_type::TYPE_STRING:
-      return ((t_base_type*)type)->is_binary() ? "T.TBinary" : "T.TString";
+      return type->is_binary() ? "T.TBinary" : "T.TString";
     case t_base_type::TYPE_BOOL:
       return "T.TBool";
     case t_base_type::TYPE_I8:

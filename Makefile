@@ -7,8 +7,8 @@ build: $(OUTPUT)
 $(OUTPUT): vendor
 	go build cmd/function-sidecar.go
 
-vendor: Gopkg.toml
-	dep ensure
+vendor: glide.yaml
+	glide update
 
 clean:
 	rm $(OUTPUT)

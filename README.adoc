@@ -13,7 +13,7 @@ make dockerize
 == Integration Test
 Assuming kafka is running locally on port 9092,
 ```
-GOPATH=$(go env GOPATH) KAFKA_BROKER=localhost:9092 go test -v cmd/function-sidecar_test.go
+GOPATH=$(go env GOPATH) KAFKA_BROKER=localhost:9092 go test -v ./...
 ```
 
 When running the above integration test with an available Zipkin server, can optionally pass

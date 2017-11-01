@@ -32,11 +32,14 @@ import (
 	"sync"
 	"time"
 
+	"io/ioutil"
+
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/internal"
 	"google.golang.org/grpc/keepalive"
@@ -96,6 +99,11 @@ type Server struct {
 	cv     *sync.Cond
 	m      map[string]*service // service name -> service info
 	events trace.EventLog
+
+	quit     chan struct{}
+	done     chan struct{}
+	quitOnce sync.Once
+	doneOnce sync.Once
 }
 
 type options struct {
@@ -182,6 +190,8 @@ func CustomCodec(codec Codec) ServerOption {
 }
 
 // RPCCompressor returns a ServerOption that sets a compressor for outbound messages.
+// It has lower priority than the compressor set by RegisterCompressor.
+// This function is deprecated.
 func RPCCompressor(cp Compressor) ServerOption {
 	return func(o *options) {
 		o.cp = cp
@@ -189,6 +199,8 @@ func RPCCompressor(cp Compressor) ServerOption {
 }
 
 // RPCDecompressor returns a ServerOption that sets a decompressor for inbound messages.
+// It has higher priority than the decompressor set by RegisterCompressor.
+// This function is deprecated.
 func RPCDecompressor(dc Decompressor) ServerOption {
 	return func(o *options) {
 		o.dc = dc
@@ -307,6 +319,8 @@ func NewServer(opt ...ServerOption) *Server {
 		opts:  opts,
 		conns: make(map[io.Closer]bool),
 		m:     make(map[string]*service),
+		quit:  make(chan struct{}),
+		done:  make(chan struct{}),
 	}
 	s.cv = sync.NewCond(&s.mu)
 	s.ctx, s.cancel = context.WithCancel(context.Background())
@@ -418,11 +432,9 @@ func (s *Server) GetServiceInfo() map[string]ServiceInfo {
 	return ret
 }
 
-var (
-	// ErrServerStopped indicates that the operation is now illegal because of
-	// the server being stopped.
-	ErrServerStopped = errors.New("grpc: the server has been stopped")
-)
+// ErrServerStopped indicates that the operation is now illegal because of
+// the server being stopped.
+var ErrServerStopped = errors.New("grpc: the server has been stopped")
 
 func (s *Server) useTransportAuthenticator(rawConn net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	if s.opts.creds == nil {
@@ -487,6 +499,14 @@ func (s *Server) Serve(lis net.Listener) error {
 			s.mu.Lock()
 			s.printf("done serving; Accept = %v", err)
 			s.mu.Unlock()
+
+			// If Stop or GracefulStop is called, block until they are done and return nil
+			select {
+			case <-s.quit:
+				<-s.done
+				return nil
+			default:
+			}
 			return err
 		}
 		tempDelay = 0
@@ -688,16 +708,18 @@ func (s *Server) removeConn(c io.Closer) {
 
 func (s *Server) sendResponse(t transport.ServerTransport, stream *transport.Stream, msg interface{}, cp Compressor, opts *transport.Options) error {
 	var (
-		cbuf       *bytes.Buffer
 		outPayload *stats.OutPayload
 	)
-	if cp != nil {
-		cbuf = new(bytes.Buffer)
-	}
 	if s.opts.statsHandler != nil {
 		outPayload = &stats.OutPayload{}
 	}
-	hdr, data, err := encode(s.opts.codec, msg, cp, cbuf, outPayload)
+	if stream.RecvCompress() != "" {
+		// Server receives compressor, check compressor set by register and default.
+		if encoding.GetCompressor(stream.RecvCompress()) == nil && (cp == nil || cp != nil && cp.Type() != stream.RecvCompress()) {
+			return Errorf(codes.Internal, "grpc: Compressor is not installed for grpc-encoding %q", stream.RecvCompress())
+		}
+	}
+	hdr, data, err := encode(s.opts.codec, msg, cp, outPayload, encoding.GetCompressor(stream.RecvCompress()))
 	if err != nil {
 		grpclog.Errorln("grpc: server failed to encode response: ", err)
 		return err
@@ -741,7 +763,9 @@ func (s *Server) processUnaryRPC(t transport.ServerTransport, stream *transport.
 			}
 		}()
 	}
-	if s.opts.cp != nil {
+	if stream.RecvCompress() != "" {
+		stream.SetSendCompress(stream.RecvCompress())
+	} else if s.opts.cp != nil {
 		// NOTE: this needs to be ahead of all handling, https://github.com/grpc/grpc-go/issues/686.
 		stream.SetSendCompress(s.opts.cp.Type())
 	}
@@ -773,7 +797,6 @@ func (s *Server) processUnaryRPC(t transport.ServerTransport, stream *transport.
 		}
 		return err
 	}
-
 	if err := checkRecvPayload(pf, stream.RecvCompress(), s.opts.dc); err != nil {
 		if st, ok := status.FromError(err); ok {
 			if e := t.WriteStatus(stream, st); e != nil {
@@ -799,9 +822,18 @@ func (s *Server) processUnaryRPC(t transport.ServerTransport, stream *transport.
 		}
 		if pf == compressionMade {
 			var err error
-			req, err = s.opts.dc.Do(bytes.NewReader(req))
-			if err != nil {
-				return Errorf(codes.Internal, err.Error())
+			if s.opts.dc != nil {
+				req, err = s.opts.dc.Do(bytes.NewReader(req))
+				if err != nil {
+					return Errorf(codes.Internal, err.Error())
+				}
+			} else {
+				dcReader := encoding.GetCompressor(stream.RecvCompress())
+				tmp, _ := dcReader.Decompress(bytes.NewReader(req))
+				req, err = ioutil.ReadAll(tmp)
+				if err != nil {
+					return Errorf(codes.Internal, "grpc: failed to decompress the received message %v", err)
+				}
 			}
 		}
 		if len(req) > s.opts.maxReceiveMessageSize {
@@ -896,16 +928,19 @@ func (s *Server) processStreamingRPC(t transport.ServerTransport, stream *transp
 			sh.HandleRPC(stream.Context(), end)
 		}()
 	}
-	if s.opts.cp != nil {
+	if stream.RecvCompress() != "" {
+		stream.SetSendCompress(stream.RecvCompress())
+	} else if s.opts.cp != nil {
 		stream.SetSendCompress(s.opts.cp.Type())
 	}
 	ss := &serverStream{
-		t:     t,
-		s:     stream,
-		p:     &parser{r: stream},
-		codec: s.opts.codec,
-		cp:    s.opts.cp,
-		dc:    s.opts.dc,
+		t:      t,
+		s:      stream,
+		p:      &parser{r: stream},
+		codec:  s.opts.codec,
+		cpType: stream.RecvCompress(),
+		cp:     s.opts.cp,
+		dc:     s.opts.dc,
 		maxReceiveMessageSize: s.opts.maxReceiveMessageSize,
 		maxSendMessageSize:    s.opts.maxSendMessageSize,
 		trInfo:                trInfo,
@@ -1054,6 +1089,16 @@ func (s *Server) handleStream(t transport.ServerTransport, stream *transport.Str
 // pending RPCs on the client side will get notified by connection
 // errors.
 func (s *Server) Stop() {
+	s.quitOnce.Do(func() {
+		close(s.quit)
+	})
+
+	defer func() {
+		s.doneOnce.Do(func() {
+			close(s.done)
+		})
+	}()
+
 	s.mu.Lock()
 	listeners := s.lis
 	s.lis = nil
@@ -1083,6 +1128,16 @@ func (s *Server) Stop() {
 // accepting new connections and RPCs and blocks until all the pending RPCs are
 // finished.
 func (s *Server) GracefulStop() {
+	s.quitOnce.Do(func() {
+		close(s.quit)
+	})
+
+	defer func() {
+		s.doneOnce.Do(func() {
+			close(s.done)
+		})
+	}()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.conns == nil {

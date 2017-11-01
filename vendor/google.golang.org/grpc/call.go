@@ -19,7 +19,6 @@
 package grpc
 
 import (
-	"bytes"
 	"io"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"golang.org/x/net/trace"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/stats"
 	"google.golang.org/grpc/status"
@@ -62,7 +62,7 @@ func recvResponse(ctx context.Context, dopts dialOptions, t transport.ClientTran
 		if c.maxReceiveMessageSize == nil {
 			return Errorf(codes.Internal, "callInfo maxReceiveMessageSize field uninitialized(nil)")
 		}
-		if err = recv(p, dopts.codec, stream, dopts.dc, reply, *c.maxReceiveMessageSize, inPayload); err != nil {
+		if err = recv(p, dopts.codec, stream, dopts.dc, reply, *c.maxReceiveMessageSize, inPayload, encoding.GetCompressor(c.compressorType)); err != nil {
 			if err == io.EOF {
 				break
 			}
@@ -89,18 +89,17 @@ func sendRequest(ctx context.Context, dopts dialOptions, compressor Compressor, 
 		}
 	}()
 	var (
-		cbuf       *bytes.Buffer
 		outPayload *stats.OutPayload
 	)
-	if compressor != nil {
-		cbuf = new(bytes.Buffer)
-	}
 	if dopts.copts.StatsHandler != nil {
 		outPayload = &stats.OutPayload{
 			Client: true,
 		}
 	}
-	hdr, data, err := encode(dopts.codec, args, compressor, cbuf, outPayload)
+	if c.compressorType != "" && encoding.GetCompressor(c.compressorType) == nil {
+		return Errorf(codes.Internal, "grpc: Compressor is not installed for grpc-encoding %q", c.compressorType)
+	}
+	hdr, data, err := encode(dopts.codec, args, compressor, outPayload, encoding.GetCompressor(c.compressorType))
 	if err != nil {
 		return err
 	}
@@ -125,14 +124,21 @@ func sendRequest(ctx context.Context, dopts dialOptions, compressor Compressor, 
 	return nil
 }
 
-// Invoke sends the RPC request on the wire and returns after response is received.
-// Invoke is called by generated code. Also users can call Invoke directly when it
-// is really needed in their use cases.
-func Invoke(ctx context.Context, method string, args, reply interface{}, cc *ClientConn, opts ...CallOption) error {
+// Invoke sends the RPC request on the wire and returns after response is
+// received.  This is typically called by generated code.
+func (cc *ClientConn) Invoke(ctx context.Context, method string, args, reply interface{}, opts ...CallOption) error {
 	if cc.dopts.unaryInt != nil {
 		return cc.dopts.unaryInt(ctx, method, args, reply, cc, invoke, opts...)
 	}
 	return invoke(ctx, method, args, reply, cc, opts...)
+}
+
+// Invoke sends the RPC request on the wire and returns after response is
+// received.  This is typically called by generated code.
+//
+// DEPRECATED: Use ClientConn.Invoke instead.
+func Invoke(ctx context.Context, method string, args, reply interface{}, cc *ClientConn, opts ...CallOption) error {
+	return cc.Invoke(ctx, method, args, reply, opts...)
 }
 
 func invoke(ctx context.Context, method string, args, reply interface{}, cc *ClientConn, opts ...CallOption) (e error) {
@@ -216,7 +222,9 @@ func invoke(ctx context.Context, method string, args, reply interface{}, cc *Cli
 			Host:   cc.authority,
 			Method: method,
 		}
-		if cc.dopts.cp != nil {
+		if c.compressorType != "" {
+			callHdr.SendCompress = c.compressorType
+		} else if cc.dopts.cp != nil {
 			callHdr.SendCompress = cc.dopts.cp.Type()
 		}
 		if c.creds != nil {
