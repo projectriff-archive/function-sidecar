@@ -29,8 +29,11 @@ func TestIntegrationWithKafka(t *testing.T) {
 	buildCmd := exec.Command("go", "build", "-v", "function-sidecar.go")
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
-	buildCmd.Env = []string{"GOPATH=" + os.Getenv("GOPATH")}
-	buildCmd.Run()
+	buildCmd.Env = []string{"GOPATH=" + os.Getenv("GOPATH"), "PATH=" + os.Getenv("PATH")}
+	buildErr := buildCmd.Run()
+	if buildErr != nil {
+		t.Fatal(buildErr)
+	}
 
 	cmd := exec.Command("./function-sidecar")
 
