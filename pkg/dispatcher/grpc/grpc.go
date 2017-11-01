@@ -19,8 +19,8 @@ package grpc
 import (
 	"google.golang.org/grpc"
 
-	function "github.com/sk8sio/function-sidecar/pkg/dispatcher/grpc/function"
-	fntypes "github.com/sk8sio/function-sidecar/pkg/dispatcher/grpc/fntypes"
+	"github.com/sk8sio/function-sidecar/pkg/dispatcher/grpc/function"
+	"github.com/sk8sio/function-sidecar/pkg/dispatcher/grpc/fntypes"
 	"github.com/sk8sio/function-sidecar/pkg/dispatcher"
 	"log"
 	"golang.org/x/net/context"
@@ -30,7 +30,8 @@ import (
 var _ = function.NewStringFunctionClient(nil)
 
 type grpcDispatcher struct {
-	client function.StringFunctionClient
+	client       function.StringFunctionClient
+	traceContext dispatcher.TraceContext
 }
 
 func (this grpcDispatcher) Dispatch(in interface{}) (interface{}, error) {
@@ -43,13 +44,14 @@ func (this grpcDispatcher) Dispatch(in interface{}) (interface{}, error) {
 	return reply.GetBody(), nil
 }
 
-func NewGrpcDispatcher() dispatcher.Dispatcher {
-	context, _ := context.WithTimeout(context.Background(), 60 * time.Second)
+func NewGrpcDispatcher(traceContext dispatcher.TraceContext) dispatcher.Dispatcher {
+
+	context, _ := context.WithTimeout(context.Background(), 60*time.Second)
 	conn, err := grpc.DialContext(context, "localhost:10382", grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 
-	result := grpcDispatcher{function.NewStringFunctionClient(conn)}
+	result := grpcDispatcher{client: function.NewStringFunctionClient(conn), traceContext: traceContext}
 	return result;
 }
