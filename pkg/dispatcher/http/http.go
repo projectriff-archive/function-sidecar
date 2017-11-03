@@ -17,7 +17,7 @@
 package http
 
 import (
-	dispatcher "github.com/sk8sio/function-sidecar/pkg/dispatcher"
+	"github.com/sk8sio/function-sidecar/pkg/dispatcher"
 	"net/http"
 	"bytes"
 	"io/ioutil"
@@ -26,16 +26,29 @@ import (
 )
 
 type httpDispatcher struct {
-	Foo string
+	traceContext dispatcher.TraceContext
 }
 
-func (httpDispatcher) Dispatch(in interface{}) (interface{}, error) {
+func (d *httpDispatcher) Dispatch(in interface{}) (interface{}, error) {
 	slice := ([]byte)(in.(string))
+
+	requestToInvoker, requestErr := http.NewRequest("POST", "http://localhost:8080", bytes.NewReader(slice))
+	if requestErr != nil {
+		return nil, requestErr
+	}
+	requestToInvoker.Header["Content-Type"] = []string{"text/plain"}
+
+	span, spanErr := d.traceContext.InitRequestSpan(requestToInvoker)
+
+	if spanErr != nil {
+		return nil, spanErr
+	}
+	defer span.Finish()
 
 	client := http.Client{
 		Timeout: time.Duration(60 * time.Second),
 	}
-	resp, err := client.Post("http://[::1]:8080", "text/plain", bytes.NewReader(slice))
+	resp, err := client.Do(requestToInvoker)
 
 	if err != nil {
 		log.Printf("Error invoking http://localhost:8080: %v", err)
@@ -51,6 +64,6 @@ func (httpDispatcher) Dispatch(in interface{}) (interface{}, error) {
 	return string(out), nil
 }
 
-func NewHttpDispatcher() dispatcher.Dispatcher {
-	return httpDispatcher{""}
+func NewHttpDispatcher(traceContext dispatcher.TraceContext) dispatcher.Dispatcher {
+	return &httpDispatcher{traceContext: traceContext}
 }

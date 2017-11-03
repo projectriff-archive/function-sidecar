@@ -1,0 +1,14 @@
+package: github.com/sk8sio/function-sidecar
+import:
+- package: github.com/bsm/sarama-cluster
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+  - ptypes/empty
+- package: github.com/opentracing/opentracing-go
+- package: github.com/openzipkin/zipkin-go-opentracing
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+- package: gopkg.in/Shopify/sarama.v1

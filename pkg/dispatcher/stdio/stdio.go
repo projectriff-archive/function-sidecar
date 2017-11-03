@@ -31,8 +31,9 @@ const (
 )
 
 type stdioDispatcher struct {
-	reader *bufio.Reader
-	writer *bufio.Writer
+	reader       *bufio.Reader
+	writer       *bufio.Writer
+	traceContext dispatcher.TraceContext
 }
 
 func (this stdioDispatcher) Dispatch(in interface{}) (interface{}, error) {
@@ -53,10 +54,10 @@ func (this stdioDispatcher) Dispatch(in interface{}) (interface{}, error) {
 		return nil, err
 	}
 	//fmt.Println("Read " + line)
-	return line[0 : len(line)-1], nil
+	return line[0: len(line)-1], nil
 }
 
-func NewStdioDispatcher() dispatcher.Dispatcher {
+func NewStdioDispatcher(traceContext dispatcher.TraceContext) dispatcher.Dispatcher {
 	fmt.Println("Creating new stdio Dispatcher")
 	err := syscall.Mkfifo(INPUT_PIPE, 0666)
 	if err != nil {
@@ -71,7 +72,7 @@ func NewStdioDispatcher() dispatcher.Dispatcher {
 		fmt.Printf("Created %v\n", OUTPUT_PIPE)
 	}
 
-	result := stdioDispatcher{}
+	result := stdioDispatcher{traceContext: traceContext}
 
 	outfile, err := os.OpenFile(INPUT_PIPE, os.O_RDWR, os.ModeNamedPipe)
 	if err != nil {

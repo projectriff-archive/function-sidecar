@@ -10,3 +10,14 @@ cd src/github.com/sk8sio/function-sidecar
 make dockerize
 ```
 
+== Integration Test
+Assuming kafka is running locally on port 9092,
+```
+GOPATH=$(go env GOPATH) KAFKA_BROKER=localhost:9092 go test -v ./...
+```
+
+When running the above integration test with an available Zipkin server, can optionally pass
+a configuration setting allowing trace collection:
+```
+SIDECAR_CONFIG='{"sc.trace.zipkin.url":"http://<zipkin-host>:<zipkin-port>"}'
+```

@@ -32,6 +32,8 @@ import (
 	"github.com/sk8sio/function-sidecar/pkg/dispatcher"
 	"github.com/sk8sio/function-sidecar/pkg/message"
 	"github.com/sk8sio/function-sidecar/pkg/dispatcher/grpc"
+	"github.com/openzipkin/zipkin-go-opentracing"
+	"github.com/opentracing/opentracing-go"
 )
 
 func main() {
@@ -51,7 +53,13 @@ func main() {
 	group := saj["spring.cloud.stream.bindings.input.group"].(string)
 	protocol := saj["spring.profiles.active"].(string)
 
-	dispatcher := createDispatcher(protocol)
+	traceContext, traceErr := buildTraceContext();
+	if traceErr != nil {
+		panic(traceErr)
+	}
+	defer traceContext.Close()
+
+	dispatcher := createDispatcher(protocol, traceContext)
 
 	var producer sarama.AsyncProducer
 	if output != nil {
@@ -112,14 +120,16 @@ func main() {
 		}
 	}
 }
-func createDispatcher(protocol string) dispatcher.Dispatcher {
+
+func createDispatcher(protocol string, traceContext dispatcher.TraceContext) dispatcher.Dispatcher {
+
 	switch protocol {
 	case "http":
-		return http.NewHttpDispatcher()
+		return http.NewHttpDispatcher(traceContext)
 	case "stdio":
-		return stdio.NewStdioDispatcher()
+		return stdio.NewStdioDispatcher(traceContext)
 	case "grpc":
-		return grpc.NewGrpcDispatcher()
+		return grpc.NewGrpcDispatcher(traceContext)
 	default:
 		panic("Unsupported Dispatcher " + protocol)
 	}
@@ -141,4 +151,45 @@ func makeConsumerConfig() *cluster.Config {
 	//consumerConfig.Consumer.Return.Errors = true
 	//consumerConfig.Group.Return.Notifications = true
 	return consumerConfig
+}
+
+func buildTraceContext() (dispatcher.TraceContext, error) {
+
+	scConfigStr := os.Getenv("SIDECAR_CONFIG")
+	if scConfigStr == "" {
+		return &dispatcher.NoOpTraceContext{}, nil
+	}
+
+	var scConfig map[string]string
+	err := json.Unmarshal([]byte(scConfigStr), &scConfig)
+	if err != nil {
+		panic(err)
+	}
+
+	zipkinUrl := scConfig["sc.trace.zipkin.url"]
+	if zipkinUrl != "" {
+		serviceName := scConfig["sc.trace.servicename"]
+		if serviceName == "" {
+			serviceName = "default-service"
+		}
+		return buildHTTPTraceContext(zipkinUrl, serviceName)
+	}
+
+	return &dispatcher.NoOpTraceContext{}, nil
+}
+
+func buildHTTPTraceContext(zipkinUrl string, serviceName string) (dispatcher.TraceContext, error) {
+	zipkinCollector, zipkinInitErr := zipkintracer.NewHTTPCollector(zipkinUrl + "/api/v1/spans")
+	if zipkinInitErr != nil {
+		panic(zipkinInitErr)
+	}
+
+	zipkinRecorder := zipkintracer.NewRecorder(zipkinCollector, true, "0.0.0.0:0", serviceName)
+	zipkinTracer, tracerErr := zipkintracer.NewTracer(zipkinRecorder, zipkintracer.ClientServerSameSpan(true), zipkintracer.TraceID128Bit(true))
+	if tracerErr != nil {
+		panic(tracerErr)
+	}
+
+	opentracing.InitGlobalTracer(zipkinTracer)
+	return &dispatcher.HTTPTraceContext{Collector: zipkinCollector, Tracer: zipkinTracer}, nil
 }
