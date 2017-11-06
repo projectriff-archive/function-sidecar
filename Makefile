@@ -14,7 +14,7 @@ vendor: Gopkg.toml
 	dep ensure
 
 clean:
-	rm $(OUTPUT)
+	rm -f $(OUTPUT)
 
 grpc: $(GRPC_DIR)/fntypes/fntypes.pb.go $(GRPC_DIR)/function/function.pb.go
 

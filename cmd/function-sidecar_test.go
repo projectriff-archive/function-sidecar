@@ -39,6 +39,7 @@ func TestIntegrationWithKafka(t *testing.T) {
 
 	fmt.Println("Starting function-sidecar")
 	startErr := cmd.Start()
+	defer cmd.Process.Kill()
 
 	if startErr != nil {
 		t.Fatal(startErr)
@@ -91,7 +92,7 @@ func TestIntegrationWithKafka(t *testing.T) {
 	}
 
 	if receivedMessageBody != SOURCE_MESSAGE_BODY {
-		t.Fatal(fmt.Errorf("Received message [%s] does not match source mssage [%s]", receivedMessageBody, SOURCE_MESSAGE_BODY))
+		t.Fatal(fmt.Errorf("Received message [%s] does not match source message [%s]", receivedMessageBody, SOURCE_MESSAGE_BODY))
 	}
 
 	fmt.Println("TestIntegrationWithKafka ended");

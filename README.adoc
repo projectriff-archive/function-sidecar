@@ -10,8 +10,8 @@ cd src/github.com/sk8sio/function-sidecar
 make dockerize
 ```
 
-== Integration Test
+== Tests (including integration with Kafka)
 Assuming kafka is running locally on port 9092,
 ```
-GOPATH=$(go env GOPATH) KAFKA_BROKER=localhost:9092 go test -v cmd/function-sidecar_test.go
+KAFKA_BROKER=localhost:9092 make clean test
 ```
