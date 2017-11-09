@@ -25,12 +25,11 @@ import (
 	"github.com/bsm/sarama-cluster"
 	"encoding/json"
 
-	"gopkg.in/Shopify/sarama.v1"
+	"github.com/Shopify/sarama"
 
 	"github.com/sk8sio/function-sidecar/pkg/dispatcher/http"
 	"github.com/sk8sio/function-sidecar/pkg/dispatcher/stdio"
 	"github.com/sk8sio/function-sidecar/pkg/dispatcher"
-	"github.com/sk8sio/function-sidecar/pkg/message"
 	"github.com/sk8sio/function-sidecar/pkg/dispatcher/grpc"
 )
 
@@ -84,27 +83,19 @@ func main() {
 		select {
 		case msg, ok := <-consumer.Messages():
 			if ok {
-				messageIn, err := message.ExtractMessage(msg.Value)
-				fmt.Fprintf(os.Stdout, "<<< %s\n", messageIn)
-				if err != nil {
-					log.Printf("Error receiving message from Kafka: %v", err)
-					break
-				}
-				strPayload := string(messageIn.Payload.([]byte))
+				strPayload := string(msg.Value);
 				dispatched, err := dispatcher.Dispatch(strPayload)
 				if err != nil {
 					log.Printf("Error dispatching message: %v", err)
 					break
 				}
 				if output != nil {
-					messageOut := message.Message{Payload: []byte(dispatched.(string)), Headers: messageIn.Headers}
-					bytesOut, err := message.EncodeMessage(messageOut)
-					fmt.Fprintf(os.Stdout, ">>> %s\n", messageOut)
-					if err != nil {
-						log.Printf("Error encoding message: %v", err)
-						break
+					bytesOut := []byte(dispatched.(string));
+					replyHeaders := make([]sarama.RecordHeader, len(msg.Headers))
+					for i, h := range msg.Headers {
+						replyHeaders[i] = *h
 					}
-					outMessage := &sarama.ProducerMessage{Topic: output.(string), Value: sarama.ByteEncoder(bytesOut)}
+					outMessage := &sarama.ProducerMessage{Topic: output.(string), Value: sarama.ByteEncoder(bytesOut), Headers: replyHeaders}
 					producer.Input() <- outMessage
 				} else {
 					fmt.Fprintf(os.Stdout, "=== Not sending function return value as function did not provide an output channel. Raw result = %s\n", dispatched)

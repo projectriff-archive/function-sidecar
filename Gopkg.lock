@@ -2,10 +2,10 @@
 
 
 [[projects]]
+  branch = "master"
   name = "github.com/Shopify/sarama"
   packages = ["."]
-  revision = "bbdbe644099b7fdc8327d5cc69c030945188b2e9"
-  version = "v1.13.0"
+  revision = "b305748200a6396c34b89fe5dacc768cb1a7ea69"
 
 [[projects]]
   name = "github.com/bsm/sarama-cluster"
@@ -100,6 +100,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d89a4b3e6398fa30a64e40c20a5317539bcdff83a063facb1888d8b3c8217485"
+  inputs-digest = "04e45128d01afc389f38bd9e647c1a6bc4db854da33a35e238b4edb24ec4d29a"
   solver-name = "gps-cdcl"
   solver-version = 1
