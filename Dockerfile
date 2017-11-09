@@ -2,4 +2,4 @@ FROM scratch
 
 ADD function-sidecar-linux /
 
-CMD ["/function-sidecar"]
+CMD ["/function-sidecar-linux"]
