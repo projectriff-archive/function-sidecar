@@ -38,7 +38,7 @@ func TestIntegrationWithKafka(t *testing.T) {
 		t.Fatal("Required environment variable KAFKA_BROKER was not provided")
 	}
 
-	cmd := exec.Command("../function-sidecar")
+	cmd := exec.Command(os.Getenv("SIDECAR_BINARY"))
 	input := randString(10)
 	output := randString(10)
 	group := randString(10)
