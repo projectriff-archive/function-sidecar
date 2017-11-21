@@ -89,11 +89,10 @@ func main() {
 
 	fmt.Printf("Sidecar for function '%v' (%v->%v) using %v dispatcher starting\n", group, input, output, protocol)
 
-	dispatcher := createDispatcher(protocol)
-
 	var producer sarama.AsyncProducer
+	var err error
 	if output != "" {
-		producer, err := sarama.NewAsyncProducer(brokers, nil)
+		producer, err = sarama.NewAsyncProducer(brokers, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -108,17 +107,18 @@ func main() {
 		panic(err)
 	}
 	defer consumer.Close()
-
-	// trap SIGINT, SIGTERM, and SIGKILL to trigger a shutdown.
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, os.Kill)
-
 	if consumerConfig.Consumer.Return.Errors {
 		go consumeErrors(consumer)
 	}
 	if consumerConfig.Group.Return.Notifications {
 		go consumeNotifications(consumer)
 	}
+
+	dispatcher := createDispatcher(protocol)
+
+	// trap SIGINT, SIGTERM, and SIGKILL to trigger a shutdown.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, os.Kill)
 
 	// consume messages, watch signals
 	for {
