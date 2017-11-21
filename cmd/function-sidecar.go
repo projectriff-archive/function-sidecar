@@ -32,36 +32,70 @@ import (
 	"github.com/sk8sio/function-sidecar/pkg/dispatcher"
 	"github.com/sk8sio/function-sidecar/pkg/message"
 	"github.com/sk8sio/function-sidecar/pkg/dispatcher/grpc"
+	"flag"
+	"strings"
 )
 
+type stringSlice []string
+
+func (sl *stringSlice) String() string {
+	return fmt.Sprint(*sl)
+}
+
+func (sl *stringSlice) Set(value string) error {
+	*sl = stringSlice(strings.Split(value, ","))
+	return nil
+}
+
+//var brokers stringSlice = []string{"localhost:9092"} // TODO uncomment after switch
+var brokers, inputs, outputs stringSlice
+var group, protocol string
+func init() {
+	flag.Var(&brokers, "brokers", "location of the Kafka server(s) to connect to")
+	flag.Var(&inputs, "inputs", "kafka topic(s) to listen to, as input for the function")
+	flag.Var(&outputs, "outputs", "kafka topic(s) to write to with results from the function")
+	flag.StringVar(&group, "group", "", "kafka consumer group to act as")
+	flag.StringVar(&protocol, "protocol", "", "dispatcher protocol to use. One of [http, grpc, stdio]")
+}
+
 func main() {
-	var saj map[string]interface{}
-	err := json.Unmarshal([]byte(os.Getenv("SPRING_APPLICATION_JSON")), &saj)
-	if err != nil {
-		panic(err)
+
+	flag.Parse()
+
+	if group == "" { // TODO, drop after switch
+		var saj map[string]interface{}
+		err := json.Unmarshal([]byte(os.Getenv("SPRING_APPLICATION_JSON")), &saj)
+		if err != nil {
+			panic(err)
+		}
+		brokers = []string{saj["spring.cloud.stream.kafka.binder.brokers"].(string)}
+		inputs = []string{saj["spring.cloud.stream.bindings.input.destination"].(string)}
+		jOutput := saj["spring.cloud.stream.bindings.output.destination"]
+		if jOutput != nil {
+			outputs = []string{jOutput.(string)}
+		}
+		group = saj["spring.cloud.stream.bindings.input.group"].(string)
+		protocol = saj["spring.profiles.active"].(string)
 	}
 
-	consumerConfig := makeConsumerConfig()
-	consumerConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
-
-	brokers := []string{saj["spring.cloud.stream.kafka.binder.brokers"].(string)}
-	input := saj["spring.cloud.stream.bindings.input.destination"].(string)
-	output := saj["spring.cloud.stream.bindings.output.destination"]
-	group := saj["spring.cloud.stream.bindings.input.group"].(string)
-	protocol := saj["spring.profiles.active"].(string)
+	input := inputs[0]
+	output := outputs[0]
 
 	fmt.Printf("Sidecar for function '%v' (%v->%v) using %v dispatcher starting\n", group, input, output, protocol)
 
 	dispatcher := createDispatcher(protocol)
 
 	var producer sarama.AsyncProducer
-	if output != nil {
-		producer, err = sarama.NewAsyncProducer(brokers, nil)
+	if output != "" {
+		producer, err := sarama.NewAsyncProducer(brokers, nil)
 		if err != nil {
 			panic(err)
 		}
 		defer producer.Close()
 	}
+
+	consumerConfig := makeConsumerConfig()
+	consumerConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 	consumer, err := cluster.NewConsumer(brokers, group, []string{input}, consumerConfig)
 	if err != nil {
@@ -97,7 +131,7 @@ func main() {
 					log.Printf("Error dispatching message: %v", err)
 					break
 				}
-				if output != nil {
+				if output != "" {
 					messageOut := message.Message{Payload: []byte(dispatched.(string)), Headers: messageIn.Headers}
 					bytesOut, err := message.EncodeMessage(messageOut)
 					fmt.Fprintf(os.Stdout, ">>> %s\n", messageOut)
@@ -105,7 +139,7 @@ func main() {
 						log.Printf("Error encoding message: %v", err)
 						break
 					}
-					outMessage := &sarama.ProducerMessage{Topic: output.(string), Value: sarama.ByteEncoder(bytesOut)}
+					outMessage := &sarama.ProducerMessage{Topic: output, Value: sarama.ByteEncoder(bytesOut)}
 					producer.Input() <- outMessage
 				} else {
 					fmt.Fprintf(os.Stdout, "=== Not sending function return value as function did not provide an output channel. Raw result = %s\n", dispatched)
