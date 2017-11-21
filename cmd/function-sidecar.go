@@ -80,7 +80,12 @@ func main() {
 	}
 
 	input := inputs[0]
-	output := outputs[0]
+	var output string
+	if len(outputs) > 0 {
+		output = outputs[0]
+	} else {
+		output = ""
+	}
 
 	fmt.Printf("Sidecar for function '%v' (%v->%v) using %v dispatcher starting\n", group, input, output, protocol)
 
