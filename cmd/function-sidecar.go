@@ -27,12 +27,12 @@ import (
 	"github.com/bsm/sarama-cluster"
 	"gopkg.in/Shopify/sarama.v1"
 
+	"flag"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/http"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/stdio"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"github.com/projectriff/function-sidecar/pkg/message"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/grpc"
-	"flag"
 	"strings"
 )
 
@@ -50,6 +50,7 @@ func (sl *stringSlice) Set(value string) error {
 //var brokers stringSlice = []string{"localhost:9092"} // TODO uncomment after switch
 var brokers, inputs, outputs stringSlice
 var group, protocol string
+
 func init() {
 	flag.Var(&brokers, "brokers", "location of the Kafka server(s) to connect to")
 	flag.Var(&inputs, "inputs", "kafka topic(s) to listen to, as input for the function")
