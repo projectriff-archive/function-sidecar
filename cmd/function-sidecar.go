@@ -17,7 +17,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -28,11 +27,11 @@ import (
 	"gopkg.in/Shopify/sarama.v1"
 
 	"flag"
+	dispatch "github.com/projectriff/function-sidecar/pkg/dispatcher"
+	"github.com/projectriff/function-sidecar/pkg/dispatcher/grpc"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/http"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/stdio"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"github.com/projectriff/function-sidecar/pkg/message"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher/grpc"
 	"strings"
 )
 
@@ -47,8 +46,8 @@ func (sl *stringSlice) Set(value string) error {
 	return nil
 }
 
-//var brokers stringSlice = []string{"localhost:9092"} // TODO uncomment after switch
-var brokers, inputs, outputs stringSlice
+var brokers stringSlice = []string{"localhost:9092"}
+var inputs, outputs stringSlice
 var group, protocol string
 
 func init() {
@@ -62,22 +61,6 @@ func init() {
 func main() {
 
 	flag.Parse()
-
-	if group == "" { // TODO, drop after switch
-		var saj map[string]interface{}
-		err := json.Unmarshal([]byte(os.Getenv("SPRING_APPLICATION_JSON")), &saj)
-		if err != nil {
-			panic(err)
-		}
-		brokers = []string{saj["spring.cloud.stream.kafka.binder.brokers"].(string)}
-		inputs = []string{saj["spring.cloud.stream.bindings.input.destination"].(string)}
-		jOutput := saj["spring.cloud.stream.bindings.output.destination"]
-		if jOutput != nil {
-			outputs = []string{jOutput.(string)}
-		}
-		group = saj["spring.cloud.stream.bindings.input.group"].(string)
-		protocol = saj["spring.profiles.active"].(string)
-	}
 
 	input := inputs[0]
 	var output string
@@ -158,7 +141,7 @@ func main() {
 	}
 }
 
-func createDispatcher(protocol string) dispatcher.Dispatcher {
+func createDispatcher(protocol string) dispatch.Dispatcher {
 	switch protocol {
 	case "http":
 		return http.NewHttpDispatcher()
