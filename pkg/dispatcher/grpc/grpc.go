@@ -33,7 +33,7 @@ type grpcDispatcher struct {
 	client function.StringFunctionClient
 }
 
-func (this grpcDispatcher) Dispatch(in interface{}) (interface{}, error) {
+func (this grpcDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (interface{}, error) {
 	request := fntypes.Request{Body: in.(string)}
 	reply, err := this.client.Call(context.Background(), &request)
 	if err != nil {

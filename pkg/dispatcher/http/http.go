@@ -36,13 +36,14 @@ const ConnectionAttemptInterval = 100 * time.Millisecond
 type httpDispatcher struct {
 }
 
-func (httpDispatcher) Dispatch(in interface{}) (interface{}, error) {
+func (httpDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (interface{}, error) {
 	slice := ([]byte)(in.(string))
 
 	client := http.Client{
 		Timeout: time.Duration(60 * time.Second),
 	}
-	resp, err := client.Post("http://localhost:8080", "text/plain", bytes.NewReader(slice))
+	contentType := headers.GetOrDefault("Content-Type", "application/octet-stream").(string)
+	resp, err := client.Post("http://localhost:8080", contentType, bytes.NewReader(slice))
 
 	if err != nil {
 		log.Printf("Error invoking http://localhost:8080: %v", err)

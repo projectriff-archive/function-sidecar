@@ -121,7 +121,7 @@ func main() {
 					break
 				}
 				strPayload := string(messageIn.Payload.([]byte))
-				dispatched, err := dispatcher.Dispatch(strPayload)
+				dispatched, err := dispatcher.Dispatch(strPayload, messageIn.Headers)
 				if err != nil {
 					log.Printf("Error dispatching message: %v", err)
 					break

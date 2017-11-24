@@ -35,7 +35,7 @@ type stdioDispatcher struct {
 	writer *bufio.Writer
 }
 
-func (this stdioDispatcher) Dispatch(in interface{}) (interface{}, error) {
+func (this stdioDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (interface{}, error) {
 	_, err := this.writer.WriteString(in.(string) + "\n")
 	if err != nil {
 		log.Printf("Error writing to %v: %v", OUTPUT_PIPE, err)
