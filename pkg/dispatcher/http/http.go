@@ -17,16 +17,14 @@
 package http
 
 import (
-	dispatcher "github.com/projectriff/function-sidecar/pkg/dispatcher"
-	"net/http"
 	"bytes"
+	retry "github.com/giantswarm/retry-go"
+	dispatcher "github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"io/ioutil"
 	"log"
-	"time"
 	"net"
-	retry "github.com/giantswarm/retry-go"
-
-
+	"net/http"
+	"time"
 )
 
 const UseTimeout = 10000000 // "Infinite" number of retries to override default and use the Timeout approach instead
@@ -43,7 +41,16 @@ func (httpDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (inte
 		Timeout: time.Duration(60 * time.Second),
 	}
 	contentType := headers.GetOrDefault("Content-Type", "application/octet-stream").(string)
-	resp, err := client.Post("http://localhost:8080", contentType, bytes.NewReader(slice))
+	req, err := http.NewRequest("POST", "http://localhost:8080", bytes.NewReader(slice))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Content-Type", contentType)
+	if accept, ok := headers["Accept"]; ok {
+		req.Header.Add("Accept", accept.(string))
+	}
+
+	resp, err := client.Do(req)
 
 	if err != nil {
 		log.Printf("Error invoking http://localhost:8080: %v", err)
@@ -52,7 +59,7 @@ func (httpDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (inte
 	defer resp.Body.Close()
 	out, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error reading response", err)
+		log.Printf("Error reading response %v\n", err)
 		return nil, err
 	}
 
