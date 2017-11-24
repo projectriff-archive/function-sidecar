@@ -62,6 +62,12 @@ func main() {
 
 	flag.Parse()
 
+	if len(inputs) > 1 {
+		log.Fatalf("Only 1 input supported for now. See https://github.com/projectriff/riff/issues/184. Provided %v\n", inputs)
+	} else if len(outputs) > 1 {
+		log.Fatalf("Only 1 output supported for now. See https://github.com/projectriff/riff/issues/184. Provided %v\n", outputs)
+	}
+
 	input := inputs[0]
 	var output string
 	if len(outputs) > 0 {
