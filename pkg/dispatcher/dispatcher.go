@@ -17,7 +17,7 @@
 package dispatcher
 
 type Dispatcher interface {
-	Dispatch(in interface{}, headers Headers) (interface{}, error)
+	Dispatch(in interface{}, headers Headers) (interface{}, Headers, error)
 }
 
 type Headers map[string]interface{}

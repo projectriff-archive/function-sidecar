@@ -34,7 +34,7 @@ const ConnectionAttemptInterval = 100 * time.Millisecond
 type httpDispatcher struct {
 }
 
-func (httpDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (interface{}, error) {
+func (httpDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (interface{}, dispatcher.Headers, error) {
 	slice := ([]byte)(in.(string))
 
 	client := http.Client{
@@ -43,7 +43,7 @@ func (httpDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (inte
 	contentType := headers.GetOrDefault("Content-Type", "application/octet-stream").(string)
 	req, err := http.NewRequest("POST", "http://localhost:8080", bytes.NewReader(slice))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req.Header.Add("Content-Type", contentType)
 	if accept, ok := headers["Accept"]; ok {
@@ -54,16 +54,30 @@ func (httpDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (inte
 
 	if err != nil {
 		log.Printf("Error invoking http://localhost:8080: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	out, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Error reading response %v\n", err)
-		return nil, err
+		return nil, nil, err
 	}
 
-	return string(out), nil
+	return string(out), flatten(resp.Header), nil
+}
+
+// http headers are a multi value map, dispatcher.Headers is single values (but with interface{} value)
+// this function flattens headers which are mono-valued
+func flatten(httpHeaders http.Header) dispatcher.Headers {
+	result := make(map[string]interface{}, len(httpHeaders))
+	for k, v := range httpHeaders {
+		if len(v) == 1 {
+			result[k] = v[0]
+		} else if len(v) > 1 {
+			result[k] = v
+		}
+	}
+	return result
 }
 
 func NewHttpDispatcher() dispatcher.Dispatcher {
