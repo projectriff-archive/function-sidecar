@@ -50,9 +50,6 @@ func extractMessage(bytes []byte) (dispatcher.Message, error) {
 	offset++
 
 	headers := make(map[string]interface{}, headerCount)
-	if headerCount == 0 {
-		headers = nil
-	}
 	for i := byte(0); i < headerCount; i = i + 1 {
 		len := uint32(bytes[offset])
 		offset++

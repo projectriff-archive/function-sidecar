@@ -72,8 +72,10 @@ func NewStdioDispatcher() (dispatcher.OldDispatcher, error) {
 	fmt.Println("Creating new stdio Dispatcher")
 	err := syscall.Mkfifo(INPUT_PIPE, 0666)
 	if err != nil {
+		log.Printf("error creating input pipe: %v", err)
 		err = os.Remove(INPUT_PIPE)
 		if err != nil {
+			log.Printf("error removing input pipe: %v", err)
 			return nil, err
 		}
 		err = syscall.Mkfifo(INPUT_PIPE, 0666)

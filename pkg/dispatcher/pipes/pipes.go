@@ -49,8 +49,10 @@ func NewPipesDispatcher() (dispatcher.Dispatcher, error) {
 	fmt.Println("Creating new pipes Dispatcher")
 	err := syscall.Mkfifo(INPUT_PIPE, 0666)
 	if err != nil {
+		log.Printf("error creating input pipe: %v", err)
 		err = os.Remove(INPUT_PIPE)
 		if err != nil {
+			log.Printf("error removing input pipe: %v", err)
 			return nil, err
 		}
 		err = syscall.Mkfifo(INPUT_PIPE, 0666)
@@ -112,6 +114,10 @@ func NewPipesDispatcher() (dispatcher.Dispatcher, error) {
 		for {
 			msg, err := readMessage(reader)
 			if err != nil {
+				log.Printf("error reading message: %v", err)
+				continue
+			}
+			if msg != nil {
 				o <- *msg
 			}
 		}
@@ -137,6 +143,9 @@ func readMessage(reader *bufio.Reader) (*dispatcher.Message, error) {
 		kv := strings.SplitN(line, "=", 2)
 		if len(kv) != 2 {
 			return nil, errors.New("Malformed header line: " + line)
+		}
+		if message.Headers == nil {
+			message.Headers = make(map[string]interface{})
 		}
 		message.Headers[kv[0]] = kv[1]
 	}
@@ -170,7 +179,7 @@ func writeMessage(writer *bufio.Writer, in dispatcher.Message) error {
 	if err != nil {
 		return err
 	}
-	_, err = writer.WriteString(in.Payload.(string))
+	_, err = writer.WriteString(in.Payload.(string) + "\n")
 	if err != nil {
 		return err
 	}

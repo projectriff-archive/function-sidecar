@@ -158,7 +158,7 @@ func main() {
 				if open {
 
 					if output != "" {
-						messageOut := dispatch.Message{Payload: []byte(resultMsg.Payload.(string)), Headers: resultMsg.Headers}
+						messageOut := dispatch.Message{Payload: resultMsg.Payload, Headers: resultMsg.Headers}
 						fmt.Fprintf(os.Stdout, "<<< %s\n", messageOut)
 						outMessage, err := wireformat.ToKafka(messageOut)
 						if err != nil {
