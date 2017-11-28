@@ -154,12 +154,18 @@ func main() {
 
 // copy headers from incomingHeaders that need to be propagated into resultHeaders
 func propagateHeaders(incomingHeaders dispatch.Headers, resultHeaders dispatch.Headers) dispatch.Headers {
-	for _, h := range PropagatedHeaders {
-		if value, ok := incomingHeaders[h]; ok {
-			resultHeaders[h] = value
+	result := make(dispatch.Headers)
+	if resultHeaders != nil {
+		for k, v := range resultHeaders {
+			result[k] = v
 		}
 	}
-	return resultHeaders
+	for _, h := range PropagatedHeaders {
+		if value, ok := incomingHeaders[h]; ok {
+			result[h] = value
+		}
+	}
+	return result
 }
 
 func createDispatcher(protocol string) dispatch.Dispatcher {
