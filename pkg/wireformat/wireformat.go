@@ -14,28 +14,35 @@
  * limitations under the License.
  */
 
-package message
+
+// Package wireformat deals with how to serialize/deserialize a dispatcher.Message on a Kafka topic.
+// Currently uses a custom encoding scheme for headers, until Kafka 0.11 headers are supported by go client lib
+package wireformat
 
 import (
 	"encoding/json"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	"github.com/Shopify/sarama"
+	"github.com/projectriff/function-sidecar/pkg/dispatcher"
 )
 
-type Message struct {
-	Payload interface{}
-	Headers map[string]interface{}
+func FromKafka(kafka *sarama.ConsumerMessage) (dispatcher.Message, error) {
+	return extractMessage(kafka.Value)
 }
 
-func (msg Message) String() string {
-	return fmt.Sprintf("Message{%v, %v}", string(msg.Payload.([]byte)), msg.Headers)
+func ToKafka(message dispatcher.Message) (*sarama.ProducerMessage, error) {
+	bytesOut, err := encodeMessage(message)
+	if err != nil {
+		return nil, err
+	}
+	return &sarama.ProducerMessage{Value: sarama.ByteEncoder(bytesOut)}, nil
 }
 
-func ExtractMessage(bytes []byte) (Message, error) {
+func extractMessage(bytes []byte) (dispatcher.Message, error) {
 	offset := uint32(0)
 	if bytes[offset] != 0xff {
-		return Message{}, errors.New("expected 0xff as the leading byte")
+		return dispatcher.Message{}, errors.New("expected 0xff as the leading byte")
 	}
 	offset++
 
@@ -58,7 +65,7 @@ func ExtractMessage(bytes []byte) (Message, error) {
 		var value interface{}
 		err := json.Unmarshal(bytes[offset:offset+len], &value)
 		if err != nil {
-			return Message{}, err
+			return dispatcher.Message{}, err
 		}
 		headers[name] = value
 		offset += len
@@ -69,10 +76,10 @@ func ExtractMessage(bytes []byte) (Message, error) {
 	} else {
 		payload = bytes[offset:]
 	}
-	return Message{payload, headers}, nil
+	return dispatcher.Message{payload, headers}, nil
 }
 
-func EncodeMessage(message Message) ([]byte, error) {
+func encodeMessage(message dispatcher.Message) ([]byte, error) {
 	length := 0
 	length++ // initial 0xff
 	length++ // no of headers

@@ -43,7 +43,7 @@ func (this grpcDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) 
 	return reply.GetBody(), nil, nil
 }
 
-func NewGrpcDispatcher() dispatcher.Dispatcher {
+func NewGrpcDispatcher() dispatcher.OldDispatcher {
 	context, _ := context.WithTimeout(context.Background(), 60 * time.Second)
 	conn, err := grpc.DialContext(context, "localhost:10382", grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {

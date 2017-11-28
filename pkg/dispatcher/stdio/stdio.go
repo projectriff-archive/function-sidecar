@@ -56,7 +56,7 @@ func (this stdioDispatcher) Dispatch(in interface{}, headers dispatcher.Headers)
 	return line[0 : len(line)-1], nil, nil
 }
 
-func NewStdioDispatcher() dispatcher.Dispatcher {
+func NewStdioDispatcher() dispatcher.OldDispatcher {
 	fmt.Println("Creating new stdio Dispatcher")
 	err := syscall.Mkfifo(INPUT_PIPE, 0666)
 	if err != nil {
