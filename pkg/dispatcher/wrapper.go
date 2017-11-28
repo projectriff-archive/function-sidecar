@@ -45,7 +45,7 @@ func propagateHeaders(incomingMessage *Message, resultMessage *Message) {
 	}
 }
 
-func NewWrapper(old OldDispatcher) wrapper {
+func NewWrapper(old OldDispatcher) (wrapper, error) {
 	i := make(chan Message)
 	o := make(chan Message)
 
@@ -72,5 +72,5 @@ func NewWrapper(old OldDispatcher) wrapper {
 		}
 	}()
 
-	return wrapper{old: old, input: i, output: o}
+	return wrapper{old: old, input: i, output: o}, nil
 }

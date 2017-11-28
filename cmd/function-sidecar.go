@@ -30,8 +30,10 @@ import (
 	dispatch "github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/grpc"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/http"
+	"github.com/projectriff/function-sidecar/pkg/dispatcher/pipes"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/stdio"
 	"github.com/projectriff/function-sidecar/pkg/wireformat"
+	"io"
 	"strings"
 )
 
@@ -109,7 +111,15 @@ func main() {
 		go consumeNotifications(consumer)
 	}
 
-	dispatcher := createDispatcher(protocol)
+	dispatcher, err := createDispatcher(protocol)
+	if err != nil {
+		panic(err)
+	}
+	switch d := dispatcher.(type) {
+	case io.Closer:
+		fmt.Print("Requesting close()")
+		defer d.Close()
+	}
 
 	// trap SIGINT, SIGTERM, and SIGKILL to trigger a shutdown.
 	signals := make(chan os.Signal, 1)
@@ -157,7 +167,7 @@ func main() {
 						}
 						outMessage.Topic = output
 						select {
-							case producer.Input() <- outMessage:
+						case producer.Input() <- outMessage:
 						}
 					} else {
 						fmt.Fprintf(os.Stdout, "=== Not sending function return value as function did not provide an output channel. Raw result = %s\n", resultMsg)
@@ -197,12 +207,18 @@ func propagateHeaders(incomingHeaders dispatch.Headers, resultHeaders dispatch.H
 	return result
 }
 
-func createDispatcher(protocol string) dispatch.Dispatcher {
+func createDispatcher(protocol string) (dispatch.Dispatcher, error) {
 	switch protocol {
 	case "http":
 		return dispatch.NewWrapper(http.NewHttpDispatcher())
+	case "pipes":
+		return pipes.NewPipesDispatcher()
 	case "stdio":
-		return dispatch.NewWrapper(stdio.NewStdioDispatcher())
+		d, err := stdio.NewStdioDispatcher()
+		if err != nil {
+			return nil, err
+		}
+		return dispatch.NewWrapper(d)
 	case "grpc":
 		return dispatch.NewWrapper(grpc.NewGrpcDispatcher())
 	default:

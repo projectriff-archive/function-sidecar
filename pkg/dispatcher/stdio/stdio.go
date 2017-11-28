@@ -56,17 +56,43 @@ func (this stdioDispatcher) Dispatch(in interface{}, headers dispatcher.Headers)
 	return line[0 : len(line)-1], nil, nil
 }
 
-func NewStdioDispatcher() dispatcher.OldDispatcher {
+func (this stdioDispatcher) Close() error {
+	err1 := os.Remove(INPUT_PIPE)
+	err2 := os.Remove(OUTPUT_PIPE)
+	log.Printf("err1 = %v"  , err1)
+	log.Printf("err2 = %v"  , err2)
+	if err1 == nil {
+		return err2
+	} else {
+		return err1
+	}
+}
+
+func NewStdioDispatcher() (dispatcher.OldDispatcher, error) {
 	fmt.Println("Creating new stdio Dispatcher")
 	err := syscall.Mkfifo(INPUT_PIPE, 0666)
 	if err != nil {
-		panic(err)
+		err = os.Remove(INPUT_PIPE)
+		if err != nil {
+			return nil, err
+		}
+		err = syscall.Mkfifo(INPUT_PIPE, 0666)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		fmt.Printf("Created %v\n", INPUT_PIPE)
 	}
 	err = syscall.Mkfifo(OUTPUT_PIPE, 0666)
 	if err != nil {
-		panic(err)
+		err = os.Remove(OUTPUT_PIPE)
+		if err != nil {
+			return nil, err
+		}
+		err = syscall.Mkfifo(OUTPUT_PIPE, 0666)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		fmt.Printf("Created %v\n", OUTPUT_PIPE)
 	}
@@ -75,7 +101,7 @@ func NewStdioDispatcher() dispatcher.OldDispatcher {
 
 	outfile, err := os.OpenFile(INPUT_PIPE, os.O_RDWR, os.ModeNamedPipe)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	result.writer = bufio.NewWriter(outfile)
 	infile, err := os.OpenFile(OUTPUT_PIPE, os.O_RDWR, os.ModeNamedPipe)
@@ -84,5 +110,5 @@ func NewStdioDispatcher() dispatcher.OldDispatcher {
 	}
 	result.reader = bufio.NewReader(infile)
 
-	return result
+	return result, nil
 }
