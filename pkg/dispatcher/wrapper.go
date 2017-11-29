@@ -19,7 +19,7 @@ package dispatcher
 import "log"
 
 type wrapper struct {
-	old    OldDispatcher
+	old    SynchDispatcher
 	input  chan<- Message
 	output <-chan Message
 }
@@ -48,7 +48,8 @@ func propagateHeaders(incomingMessage *Message, resultMessage *Message) {
 	}
 }
 
-func NewWrapper(old OldDispatcher) (wrapper, error) {
+// NewWrapper wraps a SynchDispatcher to conform to the channel based Dispatcher interface
+func NewWrapper(synch SynchDispatcher) (wrapper, error) {
 	i := make(chan Message)
 	o := make(chan Message)
 
@@ -58,9 +59,9 @@ func NewWrapper(old OldDispatcher) (wrapper, error) {
 			case in, open := <-i:
 				if open {
 					log.Printf("Wrapper received %v\n", in)
-					payload, headers, err := old.Dispatch(in.Payload, in.Headers)
+					payload, headers, err := synch.Dispatch(in.Payload, in.Headers)
 					if err != nil {
-						log.Printf("Error calling old dispatcher %v\n", err)
+						log.Printf("Error calling synch dispatcher %v\n", err)
 					}
 					message := Message{Payload: payload, Headers: headers}
 					propagateHeaders(&in, &message)
@@ -75,5 +76,5 @@ func NewWrapper(old OldDispatcher) (wrapper, error) {
 		}
 	}()
 
-	return wrapper{old: old, input: i, output: o}, nil
+	return wrapper{old: synch, input: i, output: o}, nil
 }

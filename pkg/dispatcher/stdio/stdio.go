@@ -68,7 +68,7 @@ func (this stdioDispatcher) Close() error {
 	}
 }
 
-func NewStdioDispatcher() (dispatcher.OldDispatcher, error) {
+func NewStdioDispatcher() (dispatcher.SynchDispatcher, error) {
 	fmt.Println("Creating new stdio Dispatcher")
 	err := syscall.Mkfifo(INPUT_PIPE, 0666)
 	if err != nil {

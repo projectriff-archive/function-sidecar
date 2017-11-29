@@ -80,7 +80,7 @@ func flatten(httpHeaders http.Header) dispatcher.Headers {
 	return result
 }
 
-func NewHttpDispatcher() dispatcher.OldDispatcher {
+func NewHttpDispatcher() dispatcher.SynchDispatcher {
 	attemptDial := func() error {
 		log.Println("Waiting for function to accept connection on localhost:8080")
 		_, err := net.Dial("tcp", "localhost:8080")

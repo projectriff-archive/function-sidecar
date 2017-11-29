@@ -18,7 +18,7 @@ package dispatcher
 
 import "fmt"
 
-type OldDispatcher interface {
+type SynchDispatcher interface {
 	Dispatch(in interface{}, headers Headers) (interface{}, Headers, error)
 }
 
