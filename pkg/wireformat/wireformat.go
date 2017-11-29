@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-
 // Package wireformat deals with how to serialize/deserialize a dispatcher.Message on a Kafka topic.
 // Currently uses a custom encoding scheme for headers, until Kafka 0.11 headers are supported by go client lib
 package wireformat
 
 import (
-	"encoding/json"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"github.com/Shopify/sarama"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher"
@@ -50,14 +49,17 @@ func extractMessage(bytes []byte) (dispatcher.Message, error) {
 	offset++
 
 	headers := make(map[string]interface{}, headerCount)
+	if headerCount == 0 {
+		headers = nil
+	}
 	for i := byte(0); i < headerCount; i = i + 1 {
 		len := uint32(bytes[offset])
 		offset++
 
-		name := string(bytes[offset:offset+len])
+		name := string(bytes[offset : offset+len])
 		offset += len
 
-		len = binary.BigEndian.Uint32(bytes[offset:offset+4])
+		len = binary.BigEndian.Uint32(bytes[offset : offset+4])
 		offset += 4
 		var value interface{}
 		err := json.Unmarshal(bytes[offset:offset+len], &value)
@@ -82,7 +84,7 @@ func encodeMessage(message dispatcher.Message) ([]byte, error) {
 	length++ // no of headers
 
 	headerValues := make(map[string][]byte, len(message.Headers))
-	for k,v := range message.Headers {
+	for k, v := range message.Headers {
 		length += 1 // 1 byte to encode len(k)
 		length += len(k)
 		var err error
@@ -107,7 +109,7 @@ func encodeMessage(message dispatcher.Message) ([]byte, error) {
 	result[offset] = byte(len(message.Headers))
 	offset++
 
-	for k,_ := range message.Headers {
+	for k, _ := range message.Headers {
 		l := len(k)
 		result[offset] = byte(l)
 		offset++

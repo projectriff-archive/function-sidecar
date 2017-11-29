@@ -139,7 +139,7 @@ func readMessage(reader *bufio.Reader) (*dispatcher.Message, error) {
 		if err != nil {
 			return nil, err
 		}
-		line = line[0 : len(line)-1] // drop CR
+		line = line[0: len(line)-1] // drop CR
 		kv := strings.SplitN(line, "=", 2)
 		if len(kv) != 2 {
 			return nil, errors.New("Malformed header line: " + line)
@@ -150,15 +150,15 @@ func readMessage(reader *bufio.Reader) (*dispatcher.Message, error) {
 		message.Headers[kv[0]] = kv[1]
 	}
 
-	payload := make([]byte, 0)
+	payload := make([]byte, 0, 256)
 	for line, err = reader.ReadString('\n'); line != "#end\n"; line, err = reader.ReadString('\n') {
 		if err != nil {
 			return nil, err
 		}
-		payload = append(payload, ([]byte(line))...)
+		payload = append(payload, []byte(line)...)
 	}
 	// Strip last CR
-	payload = payload[0 : len(payload)-1]
+	payload = payload[0: len(payload)-1]
 
 	message.Payload = payload
 	return &message, nil
@@ -169,17 +169,19 @@ func writeMessage(writer *bufio.Writer, in dispatcher.Message) error {
 	if err != nil {
 		return err
 	}
-	for k, v := range in.Headers {
-		_, err = writer.WriteString(k + "=" + v.(string) + "\n")
-		if err != nil {
-			return err
+	if in.Headers != nil {
+		for k, v := range in.Headers {
+			_, err = writer.WriteString(k + "=" + v.(string) + "\n")
+			if err != nil {
+				return err
+			}
 		}
 	}
 	_, err = writer.WriteString("#payload\n")
 	if err != nil {
 		return err
 	}
-	_, err = writer.WriteString(in.Payload.(string) + "\n")
+	_, err = writer.WriteString(string(in.Payload.([]byte)) + "\n")
 	if err != nil {
 		return err
 	}

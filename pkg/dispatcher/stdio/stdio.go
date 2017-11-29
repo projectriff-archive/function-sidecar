@@ -36,7 +36,7 @@ type stdioDispatcher struct {
 }
 
 func (this stdioDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (interface{}, dispatcher.Headers, error) {
-	_, err := this.writer.WriteString(in.(string) + "\n")
+	_, err := this.writer.WriteString(string(in.([]byte)) + "\n")
 	if err != nil {
 		log.Printf("Error writing to %v: %v", OUTPUT_PIPE, err)
 		return nil, nil, err
@@ -53,7 +53,7 @@ func (this stdioDispatcher) Dispatch(in interface{}, headers dispatcher.Headers)
 		return nil, nil, err
 	}
 	//fmt.Println("Read " + line)
-	return line[0 : len(line)-1], nil, nil
+	return []byte(line[0 : len(line)-1]), nil, nil
 }
 
 func (this stdioDispatcher) Close() error {

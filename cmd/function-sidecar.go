@@ -137,9 +137,7 @@ func main() {
 						log.Printf("Error receiving message from Kafka: %v", err)
 						break
 					}
-					strPayload := string(messageIn.Payload.([]byte))
-					dMessage := dispatch.Message{Payload: strPayload, Headers: messageIn.Headers}
-					dispatcher.Input() <- dMessage
+					dispatcher.Input() <- messageIn
 					consumer.MarkOffset(msg, "") // mark message as processed
 				} else {
 					// Kafka closed
@@ -156,18 +154,16 @@ func main() {
 			// Result message
 			case resultMsg, open := <-dispatcher.Output(): // Make sure to drain channel even if output==""
 				if open {
-
 					if output != "" {
-						messageOut := dispatch.Message{Payload: resultMsg.Payload, Headers: resultMsg.Headers}
-						fmt.Fprintf(os.Stdout, "<<< %s\n", messageOut)
-						outMessage, err := wireformat.ToKafka(messageOut)
+						fmt.Fprintf(os.Stdout, "<<< %s\n", resultMsg)
+						producerMessage, err := wireformat.ToKafka(resultMsg)
 						if err != nil {
 							log.Printf("Error encoding message: %v", err)
 							break
 						}
-						outMessage.Topic = output
+						producerMessage.Topic = output
 						select {
-						case producer.Input() <- outMessage:
+						case producer.Input() <- producerMessage:
 						}
 					} else {
 						fmt.Fprintf(os.Stdout, "=== Not sending function return value as function did not provide an output channel. Raw result = %s\n", resultMsg)

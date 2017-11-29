@@ -38,11 +38,11 @@ var PropagatedHeaders = []string{"correlationId"}
 
 // copy headers from incomingMessage that need to be propagated into resultMessage.Headers
 func propagateHeaders(incomingMessage *Message, resultMessage *Message) {
-	if resultMessage.Headers == nil {
-		resultMessage.Headers = make(map[string]interface{})
-	}
 	for _, h := range PropagatedHeaders {
 		if value, ok := incomingMessage.Headers[h]; ok {
+			if resultMessage.Headers == nil {
+				resultMessage.Headers = make(map[string]interface{})
+			}
 			resultMessage.Headers[h] = value
 		}
 	}

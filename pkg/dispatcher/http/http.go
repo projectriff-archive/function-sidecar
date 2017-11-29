@@ -35,7 +35,7 @@ type httpDispatcher struct {
 }
 
 func (httpDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (interface{}, dispatcher.Headers, error) {
-	slice := ([]byte)(in.(string))
+	slice := in.([]byte)
 
 	client := http.Client{
 		Timeout: time.Duration(60 * time.Second),
@@ -63,7 +63,7 @@ func (httpDispatcher) Dispatch(in interface{}, headers dispatcher.Headers) (inte
 		return nil, nil, err
 	}
 
-	return string(out), flatten(resp.Header), nil
+	return out, flatten(resp.Header), nil
 }
 
 // http headers are a multi value map, dispatcher.Headers is single values (but with interface{} value)
