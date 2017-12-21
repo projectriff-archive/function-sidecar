@@ -37,13 +37,10 @@ func (w *wrapper) Output() <-chan Message {
 var PropagatedHeaders = []string{"correlationId"}
 
 // copy headers from incomingMessage that need to be propagated into resultMessage.Headers
-func propagateHeaders(incomingMessage *Message, resultMessage *Message) {
+func propagateHeaders(incomingMessage Message, resultMessage Message) {
 	for _, h := range PropagatedHeaders {
-		if value, ok := incomingMessage.Headers[h]; ok {
-			if resultMessage.Headers == nil {
-				resultMessage.Headers = make(map[string]interface{})
-			}
-			resultMessage.Headers[h] = value
+		if value, ok := incomingMessage.Headers()[h]; ok {
+			resultMessage.Headers()[h] = value
 		}
 	}
 }
@@ -59,13 +56,13 @@ func NewWrapper(synch SynchDispatcher) (*wrapper, error) {
 			case in, open := <-i:
 				if open {
 					log.Printf("Wrapper received %v\n", in)
-					message, err := synch.Dispatch(&in)
+					message, err := synch.Dispatch(in)
 					if err != nil {
 						log.Printf("Error calling synch dispatcher %v\n", err)
 					}
-					propagateHeaders(&in, message)
+					propagateHeaders(in, message)
 					log.Printf("Wrapper about to forward %v\n", message)
-					o <- *message
+					o <- message
 				} else {
 					close(o)
 					log.Print("Shutting down wrapper")
