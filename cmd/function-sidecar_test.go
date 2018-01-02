@@ -1,19 +1,20 @@
 package main_test
 
 import (
-	"testing"
-	"net/http"
-	"os/exec"
-	"os"
-	"fmt"
 	"bufio"
 	"errors"
-	"github.com/bsm/sarama-cluster"
+	"fmt"
 	"math/rand"
+	"net/http"
+	"os"
+	"os/exec"
+	"testing"
 	"time"
-	"github.com/projectriff/function-sidecar/pkg/wireformat"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
+
 	"github.com/Shopify/sarama"
+	"github.com/bsm/sarama-cluster"
+	"github.com/projectriff/function-sidecar/pkg/dispatcher"
+	"github.com/projectriff/function-sidecar/pkg/wireformat"
 )
 
 const sourceMsg = `World`
@@ -43,7 +44,7 @@ func TestIntegrationWithKafka(t *testing.T) {
 	input := randString(10)
 	output := randString(10)
 	group := randString(10)
-	cmd := exec.Command("../function-sidecar", "--inputs", input, "--outputs", output, "--brokers", broker, "--group", group, "--protocol", "http")
+	cmd := exec.Command("../function-sidecar", "--zipkin-url", "http://localhost:9411", "--inputs", input, "--outputs", output, "--brokers", broker, "--group", group, "--protocol", "http")
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -57,7 +58,7 @@ func TestIntegrationWithKafka(t *testing.T) {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		bodyScanner := bufio.NewScanner(r.Body)
-		if ! bodyScanner.Scan() {
+		if !bodyScanner.Scan() {
 			t.Fatal(errors.New("Scan of message body failed"))
 		}
 		w.Write([]byte("Hello " + bodyScanner.Text()))

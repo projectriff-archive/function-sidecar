@@ -18,13 +18,15 @@ package http
 
 import (
 	"bytes"
-	"github.com/giantswarm/retry-go"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/giantswarm/retry-go"
+	"github.com/projectriff/function-sidecar/pkg/dispatcher"
+	"github.com/projectriff/function-sidecar/pkg/tracing"
 )
 
 const UseTimeout = 10000000 // "Infinite" number of retries to override default and use the Timeout approach instead
@@ -32,9 +34,10 @@ const ConnectionAttemptTimeout = 1 * time.Minute
 const ConnectionAttemptInterval = 100 * time.Millisecond
 
 type httpDispatcher struct {
+	traceContext tracing.TraceContext
 }
 
-func (httpDispatcher) Dispatch(in *dispatcher.Message) (*dispatcher.Message, error) {
+func (d httpDispatcher) Dispatch(in *dispatcher.Message) (*dispatcher.Message, error) {
 	client := http.Client{
 		Timeout: time.Duration(60 * time.Second),
 	}
@@ -43,6 +46,12 @@ func (httpDispatcher) Dispatch(in *dispatcher.Message) (*dispatcher.Message, err
 		return nil, err
 	}
 	propagateIncomingHeaders(in, req)
+
+	span, spanErr := d.traceContext.InitRequestSpan(req)
+	if spanErr != nil {
+		return nil, spanErr
+	}
+	defer span.Finish()
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -87,7 +96,7 @@ func propagateOutgoingHeaders(resp *http.Response, message *dispatcher.Message) 
 	}
 }
 
-func NewHttpDispatcher() dispatcher.SynchDispatcher {
+func NewHttpDispatcher(traceContext tracing.TraceContext) dispatcher.SynchDispatcher {
 	attemptDial := func() error {
 		log.Println("Waiting for function to accept connection on localhost:8080")
 		_, err := net.Dial("tcp", "localhost:8080")
@@ -101,5 +110,5 @@ func NewHttpDispatcher() dispatcher.SynchDispatcher {
 	if err != nil {
 		panic(err)
 	}
-	return httpDispatcher{}
+	return httpDispatcher{traceContext: traceContext}
 }
