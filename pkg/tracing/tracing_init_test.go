@@ -3,7 +3,7 @@ package tracing_test
 import (
 	"testing"
 
-	"github.com/projectriff/function-sidecar-riff/pkg/tracing"
+	"github.com/projectriff/function-sidecar/pkg/tracing"
 )
 
 func TestTracing(t *testing.T) {

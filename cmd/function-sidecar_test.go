@@ -44,7 +44,7 @@ func TestIntegrationWithKafka(t *testing.T) {
 	input := randString(10)
 	output := randString(10)
 	group := randString(10)
-	cmd := exec.Command("../function-sidecar", "--zipkin-url", "localhost:9411", "--inputs", input, "--outputs", output, "--brokers", broker, "--group", group, "--protocol", "http")
+	cmd := exec.Command("../function-sidecar", "--zipkin-url", "http://localhost:9411", "--inputs", input, "--outputs", output, "--brokers", broker, "--group", group, "--protocol", "http")
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

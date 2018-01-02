@@ -30,12 +30,12 @@ import (
 	"io"
 	"strings"
 
-	"github.com/projectriff/function-sidecar-riff/pkg/tracing"
 	dispatch "github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/grpc"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/http"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/pipes"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/stdio"
+	"github.com/projectriff/function-sidecar/pkg/tracing"
 	"github.com/projectriff/function-sidecar/pkg/wireformat"
 )
 
@@ -116,7 +116,7 @@ func main() {
 		go consumeNotifications(consumer)
 	}
 
-	dispatcher, err := createDispatcher(protocol)
+	dispatcher, err := createDispatcher(protocol, traceContext)
 	if err != nil {
 		panic(err)
 	}
@@ -191,10 +191,10 @@ func main() {
 	}
 }
 
-func createDispatcher(protocol string) (dispatch.Dispatcher, error) {
+func createDispatcher(protocol string, traceContext tracing.TraceContext) (dispatch.Dispatcher, error) {
 	switch protocol {
 	case "http":
-		return dispatch.NewWrapper(http.NewHttpDispatcher())
+		return dispatch.NewWrapper(http.NewHttpDispatcher(traceContext))
 	case "pipes":
 		return pipes.NewPipesDispatcher()
 	case "stdio":
