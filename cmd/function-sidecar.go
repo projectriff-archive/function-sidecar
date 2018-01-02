@@ -27,14 +27,16 @@ import (
 	"github.com/bsm/sarama-cluster"
 
 	"flag"
+	"io"
+	"strings"
+
+	"github.com/projectriff/function-sidecar-riff/pkg/tracing"
 	dispatch "github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/grpc"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/http"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/pipes"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher/stdio"
 	"github.com/projectriff/function-sidecar/pkg/wireformat"
-	"io"
-	"strings"
 )
 
 type stringSlice []string
@@ -51,8 +53,11 @@ func (sl *stringSlice) Set(value string) error {
 var brokers stringSlice = []string{"localhost:9092"}
 var inputs, outputs stringSlice
 var group, protocol string
+var zipkinUrl, zipkinServiceName string
 
 func init() {
+	flag.StringVar(&zipkinServiceName, "zipkin-service-name", "", "service name for Zipkin tracing [optional]")
+	flag.StringVar(&zipkinUrl, "zipkin-url", "", "location of Zipkin server(s) for tracing data [optional]")
 	flag.Var(&brokers, "brokers", "location of the Kafka server(s) to connect to")
 	flag.Var(&inputs, "inputs", "kafka topic(s) to listen to, as input for the function")
 	flag.Var(&outputs, "outputs", "kafka topic(s) to write to with results from the function")
@@ -79,6 +84,12 @@ func main() {
 	}
 
 	log.Printf("Sidecar for function '%v' (%v->%v) using %v dispatcher starting\n", group, input, output, protocol)
+
+	traceContext, traceErr := tracing.BuildTraceContext(zipkinUrl, zipkinServiceName)
+	if traceErr != nil {
+		panic(traceErr)
+	}
+	defer traceContext.Close()
 
 	var producer sarama.AsyncProducer
 	var err error

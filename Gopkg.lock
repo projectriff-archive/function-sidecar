@@ -74,6 +74,12 @@
   version = "v0.1.1"
 
 [[projects]]
+  name = "github.com/projectriff/function-sidecar"
+  packages = ["pkg/dispatcher","pkg/dispatcher/grpc","pkg/dispatcher/grpc/fntypes","pkg/dispatcher/grpc/function","pkg/dispatcher/http","pkg/dispatcher/pipes","pkg/dispatcher/stdio","pkg/wireformat"]
+  revision = "d73f89f6c0fe66621f2d3a19eab5eb056d6cef5a"
+  version = "v0.0.2"
+
+[[projects]]
   branch = "master"
   name = "github.com/rcrowley/go-metrics"
   packages = ["."]
@@ -112,6 +118,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2305cd807e59a0254b3b206a198ed3b35f11062d832556b0d2b4c9085f009bd4"
+  inputs-digest = "c84e75a5032aabe503486c8f236fa245023e00465313a2ded99cea71526852cf"
   solver-name = "gps-cdcl"
   solver-version = 1
