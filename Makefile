@@ -31,9 +31,6 @@ $(OUTPUT_LINUX): $(GO_SOURCES) vendor
 	# See e.g. https://blog.codeship.com/building-minimal-docker-containers-for-go-applications/ for details
 	CGO_ENABLED=0 GOOS=linux go build $(BUILD_FLAGS) -v -a -installsuffix cgo -o $(OUTPUT_LINUX) cmd/function-sidecar.go
 
-vendor: Gopkg.toml
-	dep ensure
-
 clean:
 	rm -f $(OUTPUT)
 	rm -f $(OUTPUT_LINUX)
