@@ -1,3 +1,6 @@
+*The contents of this repository has been moved to https://github.com/projectriff/riff/tree/master/function-sidecar*
+
+
 = Function Sidecar image:https://ci.projectriff.io/api/v1/teams/main/pipelines/riff/jobs/build-function-sidecar-container/badge[Function Sidecar Status, link=https://ci.projectriff.io/teams/main/pipelines/riff/jobs/build-function-sidecar-container/builds/latest]
 
 == Building
